@@ -1,0 +1,153 @@
+#!/usr/bin/with-contenv /bin/ash
+set -e
+
+# Set timezone
+ln -sf "/usr/share/zoneinfo/${TZ:-UTC}" /etc/localtime
+printf "${TZ:-UTC}" > /etc/timezone
+
+# Update PUID/PGID
+groupmod -o -g "${PGID:-888}" netbox &>/dev/null
+usermod -o -u "${PUID:-888}" netbox &>/dev/null
+
+# Copy defaults
+false | cp --recursive --interactive /defaults/* /
+mkdir -p /data/container
+
+# Conditionally link ldap_config.py
+if [[ -f '/data/netbox/ldap_config.py' ]] ; then
+  ln -sf /data/netbox/ldap_config.py /opt/netbox/netbox/netbox/ldap_config.py
+fi
+
+############### Setup container services ############### 
+# If the $NO_START_SERVICES environment variable exists, remove
+# the init service scripts to prevent netbox/nginx from launching
+if [[ $NO_START_SERVICES ]] ; then
+  echo 'Environment variable $NO_START_SERVICES exists, preventing container services from launching.'
+  rm -rf /etc/services.d
+fi
+
+# If the $NO_START_NETBOX environment variable exists, remove
+# the init service scripts to prevent netbox/nginx from launching
+if [[ $NO_START_NETBOX ]] ; then
+  echo 'Environment variable $NO_START_NETBOX exists, preventing netbox/nginx services from launching.'
+  rm -rf /etc/services.d/{nginx|netbox}
+fi
+
+# If the $NO_START_REDIS_QUEUE environment variable exists, remove
+# the init service scripts to prevent netbox/nginx from launching
+if [[ $NO_START_REDIS_QUEUE ]] ; then
+  echo 'Environment variable $NO_START_REDIS_QUEUE exists, preventing netbox redis queue service from launching.'
+  rm -rf /etc/services.d/netbox-rq
+fi
+
+
+############### Netbox sercret key ############### 
+# Generate a secret key and load it if one was not provided
+if [ -z "${SECRET_KEY}" ] ; then
+
+  # Generate a secret key and save it in the /data volume if it
+  # does not already exist
+  if [[ ! -f '/data/container/generated_secret_key' ]] ; then
+    python3 /opt/netbox/netbox/generate_secret_key.py > /data/container/generated_secret_key
+  fi
+
+  # Inject the generated secret key into the current environment,
+  # but also into the S6 overlay's container environment
+  export SECRET_KEY=$(cat '/data/container/generated_secret_key')
+  printf '%s' "${SECRET_KEY}" > /var/run/s6/container_environment/SECRET_KEY
+fi
+
+
+############### Upgrade netbox ############### 
+upgrade_netbox() {
+  echo "Upgrading netbox to v${NETBOX_VERSION}"
+  with-contenv /bin/ash /opt/netbox/upgrade.sh
+  printf '%s' "${NETBOX_VERSION}" > /data/container/netbox_version
+}
+
+# If NETBOX_UPGRADE is 'always', upgrade netbox
+#
+# If NETBOX_UPGRADE is auto:
+#   - Upgrade if /data/container/netbox_version does
+#     not exist
+#   - Upgrade if the netbox_version contained in
+#     /data/container/netbox_version is a lower
+#     version number than NETBOX_VERSION
+#
+# Otherwise do nothing
+if [ "${NETBOX_UPGRADE}" == 'always' ] ; then
+  upgrade_netbox
+elif [ "${NETBOX_UPGRADE}" == 'auto' ] ; then
+
+  if [[ ! -f /data/container/netbox_version ]] ; then
+    upgrade_netbox
+  else
+    state_version=$(cat /data/container/netbox_version)
+
+    latest_version=$(
+      printf '%s\n%s' "${state_version}" "${NETBOX_VERSION}" \
+      | sort -Vr \
+      | head -n 1
+    )
+
+    if [ "${state_version}" != "${latest_version}" ] ; then
+      upgrade_netbox
+    fi
+  fi
+
+fi
+
+
+############### Fix permissions ############### 
+# Fix permissions
+find /defaults /data \
+  \( \
+    -not -user netbox \
+    -or \
+    -not -group netbox \
+  \) \
+  -exec chown netbox:netbox {} +
+
+
+############### Create/Update Superuser ############### 
+if [ "${NO_CREATE_SUPERUSER}" ] ; then
+  printf 'Skipping superuser creation...'
+  exit 0
+fi
+
+if [ -z "$SUPERUSER_PASSWORD" ] ; then
+  superuser_name='superuser'
+  printf 'superuser name: %s\n' "${superuser_name}"
+fi
+
+if [ -z "$SUPERUSER_EMAIL" ] ; then
+  superuser_name='superuser@localhost'
+  printf 'superuser email: %s\n' "${superuser_email}"
+fi
+
+if [ -z "$SUPERUSER_PASSWORD" ] ; then
+  superuser_password=$(libressl -hex 24)
+  printf 'superuser password: %s\n' "${superuser_password}"
+fi
+
+if [ -z "${SUPERUSER_TOKEN}" ] ; then
+  superuser_token=$(libressl -hex 40)
+  printf 'superuser token: %s\n' "${superuser_token}"
+fi
+
+python3 /opt/netbox/netbox/manage.py shell --interface python <<EOF
+from django.contrib.auth.models import User
+from users.models import Token
+
+if not User.objects.filter(username='${SUPERUSER_NAME}'):
+  superuser = User.objects.create_superuser('${SUPERUSER_NAME}', '${SUPERUSER_EMAIL}', '${SUPERUSER_PASSWORD}')
+  Token.objects.create(user=superuser, key='${SUPERUSER_TOKEN}')
+else:
+  superuser = User.objects.get(username='${SUPERUSER_NAME}')
+  superuser.set_password('${SUPERUSER_PASSWORD}')
+  superuser.email = '${SUPERUSER_EMAIL}'
+  superuser.save()
+  Token.objects.filter(user=superuser).update(key='${SUPERUSER_TOKEN}')
+EOF
+
+

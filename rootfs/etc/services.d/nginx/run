@@ -1,0 +1,2 @@
+#!/usr/bin/execlineb -P
+nginx -g "daemon off; pid /run/nginx.pid;" -c /data/nginx/nginx.conf

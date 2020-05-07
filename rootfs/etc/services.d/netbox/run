@@ -1,0 +1,9 @@
+#!/usr/bin/with-contenv execlineb
+cd /opt/netbox
+/opt/netbox/venv/bin/gunicorn
+--config /opt/netbox/gunicorn.py
+--pid /run/netbox.pid
+--pythonpath /opt/netbox/netbox
+--user netbox
+--group netbox
+netbox.wsgi

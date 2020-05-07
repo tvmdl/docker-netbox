@@ -1,0 +1,6 @@
+#!/usr/bin/with-contenv execlineb 
+s6-setuidgid netbox
+cd /opt/netbox
+/opt/netbox/venv/bin/python3
+/opt/netbox/netbox/manage.py
+rqworker
