@@ -115,7 +115,7 @@ if [ "${NO_CREATE_SUPERUSER}" ] ; then
   exit 0
 fi
 
-if [ -z "$SUPERUSER_PASSWORD" ] ; then
+if [ -z "$SUPERUSER_NAME" ] ; then
   superuser_name='superuser'
   printf 'superuser name: %s\n' "${superuser_name}"
 fi
