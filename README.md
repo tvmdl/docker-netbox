@@ -1,5 +1,5 @@
 # docker-netbox
-This is a docker container for [Netbox](https://github.com/netbox-community/netbox) based on Alpine that uses the [S6-Overlay](https://github.com/just-containers/s6-overlay).
+This is a docker container for [Netbox](https://github.com/netbox-community/netbox) based on Alpine that uses the [S6-Overlay](https://github.com/just-containers/s6-overlay). This repo is subject to change and tested outside of GH, so if you would like to use it, forking it is recommended.
 
 
 ## Quickstart
