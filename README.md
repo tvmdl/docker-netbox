@@ -2,7 +2,7 @@
 This is a docker container for [Netbox](https://github.com/netbox-community/netbox).
 
 ## Quickstart
-Example `docker-compose.yml`:
+Example `docker-compose.yml` (netbox superuser creds will be logged on startup):
 ```yaml
 version: '3.7'
 
@@ -12,10 +12,6 @@ services:
       context: ./netbox
     environment:
       POSTGRES_PASSWORD: example-password
-      SUPERUSER_NAME: super
-      SUPERUSER_EMAIL: super@localhost
-      SUPERUSER_PASSWORD: example-superuser-password
-      TZ: UTC
     ports:
       - '8888:8888'
     restart: unless-stopped
@@ -36,18 +32,30 @@ services:
     restart: unless-stopped
     volumes:
       - './volumes/redis:/data'
-      
-
 ```
 
 ## Configuration
-You can configure Netbox by directly modifying configuration files, or optionally using environment variables.
+### Container Startup
+| Environment Variable | Default | Note |
+| --- | --- | --- |
+| `TZ` | `UTC` | Sets the timezone for the container |
+| `PGID` | `888` | The process group ID.  The container will change ownership of the `/data` volume on startup to match this. |
+| `PUID` | `888` | The process user ID.  The container will change ownership of the `/data` volume on startup to match this. |
+| `NO_START_SERVICES` | n/a | When set with any value, will prevent all services from starting.  Useful if you want to `docker run ... /bin/ash` without netbox actually starting |
+| `NO_START_NETBOX` | n/a | When set with any value, will prevent NGINX/Netbox from starting |
+| `NO_START_REDIS_QUEUE` | n/a | When set with any value, will prevent Netbox's redis queue worker from starting |
+| `NETBOX_UPGRADE` | `auto` | When `auto`, will run Netbox's `upgrade.sh` each on startup if the netbox version (tracked in the `/data` volume) increments.  When `always`, will always run the `upgrade.sh` script.  If `never`, will not run the `upgrade.sh` ever |
+| `NO_CREATE_SUPERUSER` | n/a | If set, will skip netbox superuser creation. |
+| `SUPERUSER_NAME` | `superuser` | The name of the superuser to be created/updated on container startup |
+| `SUPERUSER_EMAIL` | `superuser@localhost` | The email address of the superuser to be created/updated on container startup |
+| `SUPERUSER_PASSWORD` | Dynamically generated password | If container generates the password, will log the password on startup |
+| `SUPERUSER_TOKEN` | Dynamically generated | If container generates the token, will log the token on startup |
 
-### Configuration files
-Configuration files can be modified manually, and are found in the `/data/netbox` volume.
+### NGINX
+NGINX can be configured from the `/data/nginx` directory.
 
-### Environment variables
-Some Netbox settings are not simply strings, so the correspodning environment variables may be parsed.  See the `Note` column of the tables below.
+### Netbox
+To configure netbox, you can either use the configuration files in the `/data/netbox/` directory, or use environment variables.  Additionally, you can create an `ldap_config.py` file in the `/data/netbox/` directory for LDAP support.
 
 #### Required Netbox settings
 | Environment Variable | Default | Note |
@@ -87,4 +95,4 @@ There are many optional settings; the only ones included in this README are thos
 | `REMOTE_AUTH_DEFALT_GROUPS` | none | Comma-delimited list |
 | `REMOTE_AUTH_DEFAULT_PERMISSIONS` | none | Comma-delimited list |
 | `PLUGINS_CONFIG` | none | Value of environment variable will be parsed as JSON |
-| `TIME_ZONE` | `UTC` | If `TIME_ZONE` is unset but `TZ` is, use `TZ` instead of default `UTC` |
+| `TIME_ZONE` | `UTC` | If `TIME_ZONE` is unset, use value of `TZ` environment variable.  If neither are set, use default |
