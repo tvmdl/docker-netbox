@@ -1,5 +1,6 @@
 # docker-netbox
-This is a docker container for [Netbox](https://github.com/netbox-community/netbox).
+This is a docker container for [Netbox](https://github.com/netbox-community/netbox) based on Alpine that uses the [S6-Overlay](https://github.com/just-containers/s6-overlay).
+
 
 ## Quickstart
 Example `docker-compose.yml` (netbox superuser creds will be logged on startup):
@@ -42,13 +43,13 @@ services:
 | `PGID` | `888` | The process group ID.  The container will change ownership of the `/data` volume on startup to match this. |
 | `PUID` | `888` | The process user ID.  The container will change ownership of the `/data` volume on startup to match this. |
 | `NO_START_SERVICES` | n/a | When set with any value, will prevent all services from starting.  Useful if you want to `docker run ... /bin/ash` without netbox actually starting |
-| `NO_START_NETBOX` | n/a | When set with any value, will prevent NGINX/Netbox from starting |
-| `NO_START_REDIS_QUEUE` | n/a | When set with any value, will prevent Netbox's redis queue worker from starting |
+| `NO_START_NETBOX` | n/a | When set with any value, will prevent NGINX/Netbox from starting. Can be used to split Netbox and Netbox Redis Queue services into separate containers. |
+| `NO_START_REDIS_QUEUE` | n/a | When set with any value, will prevent Netbox's redis queue worker from starting. Can be used to split Netbox and Netbox Redis Queue services into separate containers. |
 | `NETBOX_UPGRADE` | `auto` | When `auto`, will run Netbox's `upgrade.sh` each on startup if the netbox version (tracked in the `/data` volume) increments.  When `always`, will always run the `upgrade.sh` script.  If `never`, will not run the `upgrade.sh` ever |
 | `NO_CREATE_SUPERUSER` | n/a | If set, will skip netbox superuser creation. |
 | `SUPERUSER_NAME` | `superuser` | The name of the superuser to be created/updated on container startup |
 | `SUPERUSER_EMAIL` | `superuser@localhost` | The email address of the superuser to be created/updated on container startup |
-| `SUPERUSER_PASSWORD` | Dynamically generated password | If container generates the password, will log the password on startup |
+| `SUPERUSER_PASSWORD` | Dynamically generated | If container generates the password, will log the password on startup |
 | `SUPERUSER_TOKEN` | Dynamically generated | If container generates the token, will log the token on startup |
 
 ### NGINX
@@ -77,7 +78,7 @@ To configure netbox, you can either use the configuration files in the `/data/ne
 | `REDIS_CACHE_PASSWORD` | none | |
 | `REDIS_CACHE_DATABASE` | `1` | |
 | `REDIS_CACHE_SSL` | `False` | |
-| `SECRET_KEY` | Automatically generated | If not set, will generate one on startup and save in `/data` volume |
+| `SECRET_KEY` | Dynamically generated | If not set, will generate one on startup and save in `/data` volume |
 
 #### Optional Netbox settings
 There are many optional settings; the only ones included in this README are those with custom logic used to parse environment variable values into Python data structures.  See the default `configuration.py` for more information.
