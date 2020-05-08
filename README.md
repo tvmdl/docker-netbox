@@ -10,7 +10,7 @@ version: '3.7'
 services:
   netbox:
     build:
-      context: ./netbox
+      context: https://github.com/tvmdl/docker-netbox.git#master
     environment:
       POSTGRES_PASSWORD: example-password
     ports:
